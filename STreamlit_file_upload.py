@@ -10,6 +10,7 @@ from Data_visualization import (
 )
 # Replace your old import line with this:
 from GenAI_Insights import get_ai_chat_response, draft_full_executive_report
+import plotly.express as px
 
 from Exploratory_Data_Analysis import (
     get_summary_statistics, get_data_quality_report, analyze_revenue_trends,
@@ -35,35 +36,19 @@ uploaded_file = st.file_uploader(
 # REFINED SIDEBAR: GLOBAL CONTROL CENTER
 # ==========================================
 
-# Initialize navigation state
-if 'page' not in st.session_state:
-    st.session_state.page = "Dashboard Overview"
-
-st.sidebar.title("🛠️ Control Center")
-
-# 1. File Status Section
-st.sidebar.subheader("📂 Active Data")
-if 'cleaned_data' in st.session_state:
-    st.sidebar.success(f"File Active: {uploaded_file.name}")
-    st.sidebar.metric("Rows", st.session_state.cleaned_data.shape[0])
-else:
-    st.sidebar.warning("No file uploaded or cleaned.")
-
-# 2. Professional Navigation
-st.sidebar.subheader("📍 Navigation")
-page = st.sidebar.radio(
-    "Select View:", 
-    ["Dashboard Overview", "Sales Analytics", "Product Performance", "ML & AI Studio"],
-    index=["Dashboard Overview", "Sales Analytics", "Product Performance", "ML & AI Studio"].index(st.session_state.page)
+# Call it like this:
+# Pass 'revenue' (or whatever your column name is) explicitly
+# Place this at the root level of your script, not nested inside an if block
+current_page, selected_regions = sb.render_sidebar(
+    uploaded_file, 
+    st.session_state.get('cleaned_data'), 
+    'revenue' # Hardcoded column for now to test
 )
-st.session_state.page = page
 
-# 3. Global Filters (Applying to the whole app)
-st.sidebar.subheader("⚙️ Global Filters")
-if 'cleaned_data' in st.session_state:
-    # Example: Select a region to filter the whole dashboard
-    region_filter = st.sidebar.multiselect("Filter by Region:", st.session_state.cleaned_data['region'].unique())
-
+# Use current_page to switch logic
+if current_page == "Dashboard Overview":
+    st.write("Welcome to the Dashboard!")
+# ... and so on
 # 1. Single File Uploader
 #uploaded_file = st.file_uploader(
  #   "Choose a CSV or Excel file", 
@@ -280,22 +265,45 @@ if uploaded_file is not None:
 
             if st.button("🚀 Generate Future Forecast"):
                 if 'ml_model' in st.session_state:
-                    with st.spinner("Simulating..."):
-                        last_row = final_df.iloc[[-1]]
-                        st.session_state['forecast_result'] = engine.generate_forecast(
+        # Debugging: These lines will now show you the mismatch BEFORE the crash happens
+                    #st.write("--- DEBUG INFO ---")
+                    #st.write("Columns in current dataframe:", final_df.columns.tolist())
+                    #st.write("Features model expects:", st.session_state['ml_feature_cols'])
+        
+        # Use the SAME feature list used during training
+                    features_used = st.session_state['ml_feature_cols']
+        
+                    try:
+                        forecast = engine.generate_forecast(
                         st.session_state['ml_model'], 
-                        last_row, 
+                        final_df, 
                         months_to_forecast,
-                        st.session_state['ml_feature_cols'] # <--- Add this!
+                        features_used
                         )
-                else:
-                    st.warning("Please train the model first!")
-
+                        st.session_state['forecast_result'] = forecast
+                    except Exception as e:
+                        st.error(f"Forecast Engine Crashed: {e}")
+                if st.session_state.get('forecast_result'):
+                    st.write("First 5 forecast predictions:", st.session_state['forecast_result'][:5])
             if st.session_state.get('forecast_result') is not None:
-                st.line_chart(st.session_state['forecast_result'])
+                forecast_df = pd.DataFrame(st.session_state['forecast_result'], columns=['Forecasted Revenue'])
+                forecast_df['Month'] = range(1, len(forecast_df) + 1)
+    
+                # 2. Create Plotly chart with a zoomed Y-axis
+                fig = px.line(forecast_df, x='Month', y='Forecasted Revenue', markers=True)
+    
+                # 3. CRITICAL: Set the Y-axis range to "zoom in" on your data
+                # This forces the chart to start at your minimum value, not 0
+                min_val = forecast_df['Forecasted Revenue'].min()
+                max_val = forecast_df['Forecasted Revenue'].max()
+                fig.update_yaxes(range=[min_val * 0.99, max_val * 1.01])
+    
+                st.plotly_chart(fig, use_container_width=True)
+    
                 if st.button("Clear Forecast"):
                     st.session_state['forecast_result'] = None
                     st.rerun()
+            
             
             # ==========================================
             # CHECK MEMORY BEFORE DISPLAYING ML RESULTS & AI
