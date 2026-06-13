@@ -2,7 +2,7 @@ import google.generativeai as genai
 import os
 #from dotenv import load_dotenv
 
-load_dotenv()
+#load_dotenv()
 
 def get_ai_chat_response(df, model_metrics, target_col, user_question, chat_history):
     """Handles conversational chat using Gemini's chat history feature."""
