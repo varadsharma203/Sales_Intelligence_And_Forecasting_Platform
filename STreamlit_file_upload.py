@@ -19,10 +19,11 @@ from Exploratory_Data_Analysis import (
 import forecasting_engine as engine
 import sidebar_logic as sb # Import your new sidebar file
 # Configure the page layout to span the whole screen for a better dashboard experience
+import churn_engine as churn
 
 
 st.set_page_config(layout="wide", page_title="Sales Forecasting Platform")
-
+st.title("📊 SALES INTELLIGENCE DASHBOARD")
 
 # Now everything else follows...
 st.title("SALES INTELLIGENCE AND FORECASTING PLATFORM")
@@ -63,8 +64,9 @@ if uploaded_file is not None:
         # Step A: Read the raw file into a DataFrame
         if file_name.endswith('.csv'):
             raw_df = pd.read_csv(uploaded_file)
-        elif file_name.endswith('.xlsx') or file_name.endswith('.xls'):
-            raw_df = pd.read_excel(uploaded_file)
+        elif file_name.endswith(('.xlsx', '.xls')):
+    # Try using the 'calamine' engine
+            raw_df = pd.read_excel(uploaded_file, engine='calamine')
         else:
             st.error("Unsupported file type!")
             st.stop()
@@ -228,6 +230,16 @@ if uploaded_file is not None:
             # ==========================================
             st.divider()
             st.header("🤖 Machine Learning Studio")
+            st.subheader("Data Requirements")
+
+            st.markdown("""
+| Column Category | Fields |
+| :--- | :--- |
+| **Target Variable** | Sales / Revenue |
+| **Numeric Features** | Price, Quality |
+| **Categorical Features** | Category, Region |
+|**Date/Time Column** | Date, Month, Year |
+""")
             
             ml_col1, ml_col2 = st.columns(2)
             
@@ -337,6 +349,7 @@ if uploaded_file is not None:
                     fig_feat = plot_feature_importance(trained_model, feature_cols, model_type_str)
                     st.plotly_chart(fig_feat, use_container_width=True)
                     
+                    
             
                 
                 # ==========================================
@@ -383,11 +396,60 @@ if uploaded_file is not None:
                     if 'report' in st.session_state:
                         st.info(st.session_state['report'])
                         st.download_button("📥 Download", st.session_state['report'], "Summary.txt")                       
-                        
+            # ==========================================
+            # ⚡ NEW: CHURN PREDICTION MODULE
+            # ==========================================
+            # ==========================================
+            st.header("⚡ Churn Prediction Module")
+            st.markdown("---")
 
+            with st.expander("🛠️ Configure & Run Churn Analysis"):
+                c1, c2 = st.columns(2)
+                churn_target = c1.selectbox("Select Target Column (e.g., Churned)", final_df.columns, key="churn_target")
+                churn_features = c2.multiselect("Select Feature Columns", final_df.columns, default=final_df.select_dtypes(include=[np.number]).columns.tolist(), key="churn_features")
+
+                if st.button("🚀 Train Churn Model"):
+                    with st.spinner("Training Random Forest Classifier..."):
+                        churn_model = churn.train_churn_model(final_df, churn_features, churn_target)
+                        st.session_state['churn_model'] = churn_model
+                        st.success("Churn model trained successfully!")
+
+
+            if 'churn_model' in st.session_state:
+                st.write("### Prediction Results")
+                predictions = churn.predict_churn(st.session_state['churn_model'], final_df[churn_features])
+                final_df['Churn_Prediction'] = predictions
+                st.dataframe(final_df.head(10)) # Show the first 10 predictions
     except Exception as e:
         # A catch-all for any major file reading errors
         st.error(f"A general error occurred: {e}")
+
         
 else:
     st.info("Please upload a file to begin.")
+def render_footer():
+    st.divider()
+    footer_html = """
+    <style>
+    .footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: #0E1117;
+        color: #FAFAFA;
+        text-align: center;
+        padding: 5px;
+        font-size: 10px;
+        border-top: 1px solid #333;
+    }
+    </style>
+    <div class="footer">
+        <p>Sales Intelligence & Forecasting Platform </p>
+        <p>Powered by  Google Gemini AI </p>
+    </div>
+    """
+    st.markdown(footer_html, unsafe_allow_html=True)
+
+# Call this at the very end of your script
+render_footer()
