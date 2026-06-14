@@ -64,7 +64,7 @@ def render_landing_page():
         st.write("Get data-driven answers from your custom AI assistant.")
     st.divider()
     st.info("🚀 **Ready to start?** Use the uploader in the sidebar to load your dataset.")
-    st.caption("Developed by Varad | [View on GitHub](https://github.com/varadandro-lang/Sales_Intelligence_And_Forecasting_Platform)")
+    
 
 # 3. Define the File Uploader
 st.title("📊 SALES INTELLIGENCE DASHBOARD")
